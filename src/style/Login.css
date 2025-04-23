@@ -1,0 +1,52 @@
+.auth-container {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(to bottom, #ebf8ff, #ffffff);
+    padding: 20px;
+  }
+  
+  .auth-card {
+    max-width: 400px;
+    width: 100%;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    padding: 24px;
+    background-color: #fff;
+  }
+  
+  .header-container {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 16px;
+  }
+  
+  .app-logo {
+    background-color: #007bff;
+    color: white;
+    font-size: 20px;
+    font-weight: bold;
+    padding: 8px 16px;
+    border-radius: 4px;
+  }
+  
+  .auth-title {
+    text-align: center;
+    margin-bottom: 8px;
+  }
+  
+  .auth-description {
+    text-align: center;
+    margin-bottom: 24px;
+    color: #6c757d;
+  }
+  
+  .auth-form .ant-form-item {
+    margin-bottom: 16px;
+  }
+  
+  .error-message {
+    margin-bottom: 16px;
+  }
+  

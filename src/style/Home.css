@@ -1,0 +1,129 @@
+/* LandingPage.css */
+
+.landing-container {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+  
+  .landing-header {
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    height: 60px;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  
+  .logo {
+    display: flex;
+    align-items: center;
+    font-weight: bold;
+    font-size: 18px;
+    text-decoration: none;
+    color: #000;
+  }
+  
+  .logo-text {
+    margin-left: 8px;
+  }
+  
+  .nav-links {
+    margin-left: auto;
+    display: flex;
+    gap: 16px;
+  }
+  
+  .nav-item {
+    text-decoration: none;
+    font-size: 14px;
+    color: #595959;
+  }
+  
+  .nav-item:hover {
+    color: #1890ff;
+  }
+  
+  .main-content {
+    flex: 1;
+  }
+  
+  .hero-section {
+    padding: 48px 16px;
+    text-align: center;
+  }
+  
+  .hero-title {
+    font-size: 32px;
+    font-weight: bold;
+  }
+  
+  .hero-description {
+    color: #595959;
+    margin: 16px 0;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  
+  .hero-buttons {
+    margin-top: 16px;
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+  }
+  
+  .features-section {
+    padding: 48px 16px;
+    background-color: #f9f9f9;
+    text-align: center;
+  }
+  
+  .features-title {
+    font-size: 28px;
+    font-weight: bold;
+    margin-bottom: 32px;
+  }
+  
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 16px;
+  }
+  
+  .feature-card {
+    text-align: left;
+  }
+  
+  .card-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 16px;
+    font-weight: bold;
+  }
+  
+  .landing-footer {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border-top: 1px solid #f0f0f0;
+    text-align: center;
+  }
+  
+  .footer-links {
+    display: flex;
+    gap: 16px;
+    margin-top: 8px;
+  }
+  
+  .footer-item {
+    text-decoration: none;
+    font-size: 12px;
+    color: #595959;
+  }
+  
+  .footer-item:hover {
+    color: #1890ff;
+  }
+  
