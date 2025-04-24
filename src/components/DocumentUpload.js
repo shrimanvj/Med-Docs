@@ -180,7 +180,7 @@ const DocumentUpload = () => {
         try {
           await window.ethereum.request({
             method: 'wallet_switchEthereumChain',
-            params: [{ chainId: '0x539' }] // ChainId 1337 in hex
+            params: [{ chainId: '0x7A69' }] // ChainId 31337 in hex
           });
         } catch (switchError) {
           // If the network doesn't exist, add it
@@ -188,8 +188,8 @@ const DocumentUpload = () => {
             await window.ethereum.request({
               method: 'wallet_addEthereumChain',
               params: [{
-                chainId: '0x539',
-                chainName: 'Localhost 8545',
+                chainId: '0x7A69',
+                chainName: 'Localhost 31337',
                 nativeCurrency: {
                   name: 'ETH',
                   symbol: 'ETH',
@@ -272,7 +272,7 @@ const DocumentUpload = () => {
       try {
         await window.ethereum.request({
           method: 'wallet_switchEthereumChain',
-          params: [{ chainId: '0x539' }], // ChainId 1337 in hex
+          params: [{ chainId: '0x7A69' }], // ChainId 31337 in hex
         });
       } catch (switchError) {
         // This error code indicates that the chain has not been added to MetaMask
@@ -282,8 +282,8 @@ const DocumentUpload = () => {
               method: 'wallet_addEthereumChain',
               params: [
                 {
-                  chainId: '0x539',
-                  chainName: 'Localhost 8545',
+                  chainId: '0x7A69',
+                  chainName: 'Localhost 31337',
                   nativeCurrency: {
                     name: 'ETH',
                     symbol: 'ETH',
@@ -294,10 +294,10 @@ const DocumentUpload = () => {
               ],
             });
           } catch (addError) {
-            throw new Error('Please add and switch to the Localhost 8545 network in MetaMask');
+            throw new Error('Please add and switch to the Localhost 31337 network in MetaMask');
           }
         } else {
-          throw new Error('Please switch to the Localhost 8545 network in MetaMask');
+          throw new Error('Please switch to the Localhost 31337 network in MetaMask');
         }
       }
 
