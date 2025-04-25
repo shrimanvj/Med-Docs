@@ -12,12 +12,10 @@ import {
 import '../styles/DocumentUpload.css';
 import { pinataConfig } from '../config/pinata';
 import { contractAddress, contractABI } from '../contracts/config';
+import { eventEmitter, EVENTS } from '../utils/events';
+import { testPinataConnection } from '../utils/pinataTest';
 
-// Debug: Log environment variables (remove in production)
-console.log('API Key:', process.env.REACT_APP_PINATA_API_KEY ? 'Present' : 'Missing');
-console.log('API Secret:', process.env.REACT_APP_PINATA_API_SECRET ? 'Present' : 'Missing');
-
-const DocumentUpload = () => {
+const DocumentUpload = ({ contract }) => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [ipfsHash, setIpfsHash] = useState('');
   const [isUploading, setIsUploading] = useState(false);
@@ -25,6 +23,21 @@ const DocumentUpload = () => {
   const [isWalletConnected, setIsWalletConnected] = useState(false);
   const [uploadFee, setUploadFee] = useState(null);
   const [isCheckingFee, setIsCheckingFee] = useState(true);
+
+  useEffect(() => {
+    const testConnection = async () => {
+      try {
+        const result = await testPinataConnection(pinataConfig.apiKey, pinataConfig.apiSecret);
+        console.log('Pinata connection test:', result);
+        if (!result.success) {
+          message.error('Failed to connect to Pinata. Please check your API keys.');
+        }
+      } catch (error) {
+        console.error('Error testing Pinata connection:', error);
+      }
+    };
+    testConnection();
+  }, []);
 
   const changeHandler = (info) => {
     if (info.fileList.length > 0) {
@@ -38,6 +51,15 @@ const DocumentUpload = () => {
     try {
       setIsUploading(true);
       setError('');
+
+      // First, ensure wallet is connected and we have the upload fee
+      if (!isWalletConnected) {
+        throw new Error('Please connect your wallet first');
+      }
+
+      if (!uploadFee) {
+        throw new Error('Upload fee not initialized');
+      }
 
       // Validate file size (max 10MB)
       if (file.size > 10 * 1024 * 1024) {
@@ -66,20 +88,19 @@ const DocumentUpload = () => {
       formData.append('pinataOptions', options);
 
       // Validate API keys
-      console.log('Pinata Config:', { 
-        apiKey: pinataConfig.apiKey ? 'Present' : 'Missing',
-        apiSecret: pinataConfig.apiSecret ? 'Present' : 'Missing'
-      });
-      
       if (!pinataConfig.apiKey || !pinataConfig.apiSecret) {
+        console.log('Pinata Config:', {
+          apiKey: pinataConfig.apiKey ? `${pinataConfig.apiKey.substring(0, 4)}...` : 'Missing',
+          apiSecret: pinataConfig.apiSecret ? `${pinataConfig.apiSecret.substring(0, 4)}...` : 'Missing'
+        });
         throw new Error('Pinata API configuration is missing. Please check your .env file.');
       }
 
       const response = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
         method: 'POST',
         headers: {
-          'pinata_api_key': 'e5a9b3ada3c8f938644b',
-          'pinata_secret_api_key': '17cf64620ede49432a052901d4acfbe6ec6a77e2285de04eb000e82c997adcd2'
+          'pinata_api_key': pinataConfig.apiKey.trim(),
+          'pinata_secret_api_key': pinataConfig.apiSecret.trim()
         },
         body: formData
       });
@@ -88,7 +109,6 @@ const DocumentUpload = () => {
         let errorMessage = 'Failed to upload to IPFS';
         try {
           const errorData = await response.json();
-          console.log('IPFS Error Response:', errorData); // Debug log
           if (errorData.error) {
             errorMessage = errorData.error.details || errorData.error.reason || errorData.error;
           } else if (errorData.message) {
@@ -100,265 +120,222 @@ const DocumentUpload = () => {
         }
         throw new Error(errorMessage);
       }
-      
-      console.log('IPFS Response:', response); // Debug log
 
       const data = await response.json();
       if (data.IpfsHash) {
         message.loading({ content: 'File uploaded to IPFS. Storing on blockchain...', key: 'upload', duration: 0 });
         
         try {
+          // Show confirmation dialog with fee
+          const feeInEther = ethers.utils.formatEther(uploadFee);
+          message.loading({ 
+            content: `Waiting for transaction confirmation. Upload fee: ${feeInEther} ETH`,
+            key: 'upload'
+          });
+
           await storeHashOnBlockchain(data.IpfsHash);
-          // Set IPFS hash only after blockchain transaction succeeds
           setIpfsHash(data.IpfsHash);
           message.success({ content: 'Document uploaded and stored successfully!', key: 'upload' });
+          // Emit event to notify other components
+          eventEmitter.emit(EVENTS.DOCUMENT_UPLOADED, { ipfsHash: data.IpfsHash });
         } catch (error) {
-          console.log('Note: Transaction completed');
+          if (error.code === 'ACTION_REJECTED') {
+            throw new Error('Transaction was rejected. Please approve the transaction in MetaMask.');
+          }
+          throw error;
         }
       } else {
-        throw new Error('Failed to upload to IPFS');
+        throw new Error('Failed to get IPFS hash from Pinata');
       }
     } catch (error) {
       console.error('Upload error:', error);
-      message.error({ 
-        content: error.message || 'Failed to upload document', 
-        key: 'upload' 
-      });
-      setError(error.message || 'Failed to upload document');
+      message.error({ content: error.message, key: 'upload' });
+      setError(error.message);
     } finally {
       setIsUploading(false);
-      if (hide) hide();
     }
   };
 
   const handleSubmission = async () => {
-    try {
-      if (!selectedFile) {
-        setError('Please select a file first');
+    if (!selectedFile) {
+      setError('Please select a file first');
+      return;
+    }
+
+    // Check if wallet is connected
+    if (!isWalletConnected) {
+      try {
+        await connectWallet();
+      } catch (error) {
+        message.error('Please connect your wallet to upload documents');
         return;
       }
-
-      await uploadToIPFS(selectedFile);
-    } catch (error) {
-      setError('Failed to upload file. Please try again.');
-      console.error('File upload failed:', error);
     }
+
+    // Check if contract is initialized
+    if (!contract) {
+      message.error('Smart contract not initialized. Please try again.');
+      return;
+    }
+
+    // Verify upload fee
+    try {
+      const fee = await contract.uploadFee();
+      setUploadFee(fee);
+      message.info(`Upload fee: ${ethers.utils.formatEther(fee)} ETH`);
+    } catch (error) {
+      console.error('Error getting upload fee:', error);
+      message.error('Failed to get upload fee. Please try again.');
+      return;
+    }
+
+    await uploadToIPFS(selectedFile);
   };
 
   const connectWallet = async () => {
     try {
       if (!window.ethereum) {
-        throw new Error('Please install MetaMask to use this feature');
+        throw new Error('Please install MetaMask first!');
       }
-
-      const accounts = await window.ethereum.request({
-        method: 'eth_requestAccounts'
-      });
-
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
       if (accounts.length > 0) {
         setIsWalletConnected(true);
-        return true;
+        setError('');
       }
-      return false;
     } catch (error) {
-      console.error('Failed to connect wallet:', error);
-      setError('Failed to connect to MetaMask. Please make sure it\'s installed and unlocked.');
-      return false;
+      console.error('Error connecting wallet:', error);
+      setError(error.message);
+      throw error; // Re-throw to handle in calling function
+    }
+  };
+
+  const init = async () => {
+    try {
+      setIsCheckingFee(true);
+      if (!contract) {
+        throw new Error('Contract not initialized');
+      }
+
+      // Check if wallet is connected
+      if (window.ethereum) {
+        const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+        setIsWalletConnected(accounts.length > 0);
+      }
+
+      // Get upload fee
+      const fee = await contract.uploadFee();
+      setUploadFee(fee);
+      setError('');
+    } catch (error) {
+      console.error('Initialization error:', error);
+      setError('Failed to initialize: ' + error.message);
+    } finally {
+      setIsCheckingFee(false);
     }
   };
 
   useEffect(() => {
-    const init = async () => {
-      try {
-        if (!window.ethereum) {
-          throw new Error('Please install MetaMask to use this feature');
-        }
-
-        const provider = new ethers.providers.Web3Provider(window.ethereum);
-        
-        // Try to switch to localhost network
-        try {
-          await window.ethereum.request({
-            method: 'wallet_switchEthereumChain',
-            params: [{ chainId: '0x7A69' }] // ChainId 31337 in hex
-          });
-        } catch (switchError) {
-          // If the network doesn't exist, add it
-          if (switchError.code === 4902) {
-            await window.ethereum.request({
-              method: 'wallet_addEthereumChain',
-              params: [{
-                chainId: '0x7A69',
-                chainName: 'Localhost 31337',
-                nativeCurrency: {
-                  name: 'ETH',
-                  symbol: 'ETH',
-                  decimals: 18
-                },
-                rpcUrls: ['http://127.0.0.1:8545']
-              }]
-            });
-          }
-        }
-
-        const accounts = await provider.send('eth_requestAccounts', []);
-
-        if (accounts.length > 0) {
-          setIsWalletConnected(true);
-          
-          // Get contract instance
-          const contract = new ethers.Contract(contractAddress, contractABI, provider);
-          
-          // Get upload fee
-          const fee = await contract.uploadFee();
-          console.log('Upload fee from contract:', ethers.utils.formatEther(fee), 'ETH');
-          setUploadFee(fee);
-        }
-
-        setIsCheckingFee(false);
-      } catch (error) {
-        console.error('Initialization error:', error);
-        setError('Failed to initialize. Please make sure MetaMask is installed and unlocked.');
-        setIsCheckingFee(false);
-      }
-    };
-
-    init();
-  }, []);
-
-  // Listen for network changes
-  useEffect(() => {
-    if (window.ethereum) {
-      window.ethereum.on('chainChanged', () => {
-        window.location.reload();
-      });
-
-      // Cleanup
-      return () => {
-        window.ethereum.removeListener('chainChanged', () => {
-          window.location.reload();
-        });
-      };
+    if (contract) {
+      init();
     }
-  }, []);
+  }, [contract]);
 
   // Listen for account changes
   useEffect(() => {
     if (window.ethereum) {
-      const handleAccountsChanged = (accounts) => {
-        setIsWalletConnected(accounts.length > 0);
-      };
-
       window.ethereum.on('accountsChanged', handleAccountsChanged);
-
       return () => {
         window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
       };
     }
   }, []);
 
+  const handleAccountsChanged = (accounts) => {
+    setIsWalletConnected(accounts.length > 0);
+  };
+
   const getFeeInEther = () => {
-    if (!uploadFee) return '0';
+    if (!uploadFee) return '...';
     return ethers.utils.formatEther(uploadFee);
   };
 
   const storeHashOnBlockchain = async (hash) => {
     try {
-      if (!window.ethereum) {
-        throw new Error('Please install MetaMask to use this feature');
+      if (!contract) {
+        throw new Error('Contract not initialized');
       }
 
-      // Try to switch to localhost network
-      try {
-        await window.ethereum.request({
-          method: 'wallet_switchEthereumChain',
-          params: [{ chainId: '0x7A69' }], // ChainId 31337 in hex
-        });
-      } catch (switchError) {
-        // This error code indicates that the chain has not been added to MetaMask
-        if (switchError.code === 4902) {
-          try {
-            await window.ethereum.request({
-              method: 'wallet_addEthereumChain',
-              params: [
-                {
-                  chainId: '0x7A69',
-                  chainName: 'Localhost 31337',
-                  nativeCurrency: {
-                    name: 'ETH',
-                    symbol: 'ETH',
-                    decimals: 18
-                  },
-                  rpcUrls: ['http://127.0.0.1:8545']
-                },
-              ],
-            });
-          } catch (addError) {
-            throw new Error('Please add and switch to the Localhost 31337 network in MetaMask');
-          }
-        } else {
-          throw new Error('Please switch to the Localhost 31337 network in MetaMask');
-        }
+      // Ensure we have a signer (connected wallet)
+      const signer = contract.signer;
+      if (!signer) {
+        throw new Error('No wallet connected. Please connect your wallet first.');
       }
 
-      if (!isWalletConnected) {
-        const connected = await connectWallet();
-        if (!connected) {
-          throw new Error('Please connect your wallet first');
-        }
-      }
+      // Get the current gas price
+      const gasPrice = await signer.provider.getGasPrice();
+      console.log('Current Gas Price:', ethers.utils.formatUnits(gasPrice, 'gwei'), 'Gwei');
+      console.log('Upload Fee:', ethers.utils.formatEther(uploadFee), 'ETH');
 
-      const provider = new ethers.providers.Web3Provider(window.ethereum);
-      const accounts = await provider.send('eth_requestAccounts', []); 
+      // Get current account
+      const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+      if (!accounts || accounts.length === 0) {
+        throw new Error('No wallet connected. Please connect your wallet first.');
+      }
+      console.log('Using account:', accounts[0]);
+
+      // Prepare transaction with upload fee
+      message.loading({ content: 'Please confirm the transaction in MetaMask...', key: 'txStatus', duration: 0 });
       
-      if (accounts.length === 0) {
-        throw new Error('No accounts found. Please connect your wallet.');
-      }
+      // Log pre-transaction state
+      console.log('Pre-transaction state:', {
+        documentHash: hash,
+        sender: accounts[0],
+        uploadFee: ethers.utils.formatEther(uploadFee),
+        gasPrice: ethers.utils.formatUnits(gasPrice, 'gwei')
+      });
 
-      const signer = provider.getSigner();
-      const contract = new ethers.Contract(contractAddress, contractABI, signer);
+      // Create transaction object
+      const tx = await contract.storeDocument(hash, { 
+        value: uploadFee,
+        gasLimit: 1000000,
+        gasPrice: gasPrice,
+        from: accounts[0] // Explicitly specify the sender
+      });
 
-      // Show loading message before transaction
-      message.loading({ content: 'Initiating transaction...', key: 'txStatus', duration: 0 });
+      console.log('Transaction sent:', tx.hash);
+      message.loading({ content: 'Transaction pending... Please wait for confirmation.', key: 'txStatus', duration: 0 });
+      
+      // Wait for transaction confirmation
+      const receipt = await tx.wait();
+      console.log('Transaction receipt:', receipt);
 
-      try {
-        // Store document with payment
-        // Get current gas price
-        const gasPrice = await provider.getGasPrice();
-        console.log('Gas Price:', ethers.utils.formatUnits(gasPrice, 'gwei'), 'Gwei');
-        console.log('Upload Fee:', ethers.utils.formatEther(uploadFee), 'ETH');
-        console.log('IPFS Hash:', hash);
-
-        // Prepare transaction
-        const tx = await contract.storeDocument(hash, { 
-          value: uploadFee,
-          gasLimit: 1000000, // Increased gas limit
-          gasPrice: gasPrice
-        });
-
-        message.loading({ content: 'Transaction pending... Please wait for confirmation.', key: 'txStatus', duration: 0 });
-        
-        // Wait for transaction confirmation
-        const receipt = await tx.wait();
-        
-        if (receipt.status === 1) {
-          setIpfsHash(hash); 
-          message.success({ content: 'Document hash stored on blockchain successfully!', key: 'txStatus' });
-          return true;
-        } 
-      } catch (txError) {
-        if (txError.code === 'ACTION_REJECTED') {
-          message.info({ content: 'Transaction was cancelled', key: 'txStatus' });
-        } else {
-          // Treat as success since the transaction actually went through
-          setIpfsHash(hash);
-          message.success({ content: 'Document stored successfully!', key: 'txStatus' });
-        }
+      // Verify document ownership after storage
+      const owner = await contract.getDocumentOwner(hash);
+      console.log('Document ownership verification:', {
+        documentHash: hash,
+        storedOwner: owner,
+        expectedOwner: accounts[0],
+        isOwnerCorrect: owner.toLowerCase() === accounts[0].toLowerCase()
+      });
+      console.log('Transaction receipt:', receipt);
+      
+      if (receipt.status === 1) {
+        setIpfsHash(hash); 
+        message.success({ content: 'Document hash stored on blockchain successfully!', key: 'txStatus' });
+        return true;
+      } else {
+        throw new Error('Transaction failed');
       }
     } catch (error) {
-      // Log for debugging but don't throw
-      console.log('Note: Transaction completed');
-      return true;
+      console.error('Blockchain storage error:', error);
+      if (error.code === 'ACTION_REJECTED') {
+        message.info({ content: 'Transaction was cancelled by user', key: 'txStatus' });
+      } else if (error.code === -32603) {
+        message.error({ content: 'Transaction failed. Please make sure you have enough ETH to pay the fee.', key: 'txStatus' });
+      } else {
+        message.error({ content: 'Failed to store on blockchain: ' + error.message, key: 'txStatus' });
+      }
+      throw error;
     }
   };
 

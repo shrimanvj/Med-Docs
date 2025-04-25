@@ -1,0 +1,60 @@
+.signup-container {
+  max-width: 400px;
+  margin: 40px auto;
+  padding: 0 20px;
+}
+
+.signup-container h1 {
+  font-size: 24px;
+  margin-bottom: 30px;
+  text-align: center;
+  color: #000;
+}
+
+.signup-form {
+  width: 100%;
+}
+
+.signup-input {
+  height: 45px !important;
+  border-radius: 4px !important;
+  font-size: 14px !important;
+}
+
+.signup-input input {
+  height: 45px !important;
+}
+
+.signup-button {
+  height: 45px !important;
+  font-size: 16px !important;
+  background: #1890ff !important;
+  border-radius: 4px !important;
+  margin-top: 10px;
+}
+
+.login-link {
+  text-align: center;
+  margin-top: 20px;
+  color: #666;
+}
+
+.login-link a {
+  color: #1890ff;
+  text-decoration: none;
+  margin-left: 5px;
+}
+
+/* Override ant-design styles */
+.ant-form-item {
+  margin-bottom: 20px !important;
+}
+
+.ant-input-affix-wrapper {
+  padding: 0 11px !important;
+}
+
+.ant-form-item-explain-error {
+  font-size: 12px;
+  margin-top: 5px;
+}

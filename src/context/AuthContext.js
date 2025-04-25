@@ -1,13 +1,17 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 
-const AuthContext = createContext(null);
+const AuthContext = createContext();
 
-export const AuthProvider = ({ children }) => {
+export function useAuth() {
+  return useContext(AuthContext);
+}
+
+export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is logged in from localStorage
+    // Check if user is stored in localStorage
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
       setUser(JSON.parse(storedUser));
@@ -15,38 +19,36 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
-  const login = (userData) => {
-    setUser(userData);
-    localStorage.setItem('user', JSON.stringify(userData));
+  const signup = async (email, password) => {
+    // In a real app, you would make an API call here
+    const newUser = { email, password };
+    localStorage.setItem('user', JSON.stringify(newUser));
+    setUser(newUser);
   };
 
-  const signup = async (email, password, name) => {
-    // Here you would typically make an API call to your backend
-    const userData = { email, name };
-    setUser(userData);
-    localStorage.setItem('user', JSON.stringify(userData));
+  const login = async (email, password) => {
+    // In a real app, you would verify credentials with an API
+    const user = { email, password };
+    localStorage.setItem('user', JSON.stringify(user));
+    setUser(user);
   };
 
   const logout = () => {
-    setUser(null);
     localStorage.removeItem('user');
+    setUser(null);
   };
 
-  if (loading) {
-    return <div>Loading...</div>;
-  }
+  const value = {
+    user,
+    signup,
+    login,
+    logout,
+    loading
+  };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, signup }}>
-      {children}
+    <AuthContext.Provider value={value}>
+      {!loading && children}
     </AuthContext.Provider>
   );
-};
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
+}

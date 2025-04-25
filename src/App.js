@@ -1,34 +1,31 @@
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
-import Login from './components/Login';
-import Signup from './components/Signup';
+import LandingPage from './components/LandingPage';
 import Dashboard from './components/Dashboard';
-import PrivateRoute from './components/PrivateRoute';
-import DocumentUpload from './components/DocumentUpload';
-import Home from './components/Home';
+import DoctorLoginPage from './components/DoctorLoginPage';
+import DoctorRegisterPage from './components/DoctorRegisterPage';
+import PatientLoginPage from './components/PatientLoginPage';
+import Signup from './components/Signup';
 import './App.css';
-import './styles/Auth.css';
 
-export default function App() {
+function App() {
   return (
-    <AuthProvider>
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
-        <Route
-          path="/dashboard"
-          element={
-            <PrivateRoute>
-              <Dashboard>
-                <DocumentUpload />
-              </Dashboard>
-            </PrivateRoute>
-          }
-        />
-        <Route path="/" element={<Navigate to="/login" />} />
-      </Routes>
-    </AuthProvider>
+    <Router>
+      <AuthProvider>
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/patient-login" element={<PatientLoginPage />} />
+          <Route path="/doctor-login" element={<DoctorLoginPage />} />
+          <Route path="/doctor-register" element={<DoctorRegisterPage />} />
+          <Route path="/signup" element={<Signup />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/doctor-dashboard" element={<Dashboard isDoctor={true} />} />
+          <Route path="*" element={<Navigate to="/" />} />
+        </Routes>
+      </AuthProvider>
+    </Router>
   );
 }
+
+export default App;
